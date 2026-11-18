@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# copilot-pi: run GitHub Copilot CLI as a minimal, Pi-style coding agent.
+set -euo pipefail
+
+pi_home="${COPILOT_PI_HOME:-$HOME/.copilot/pi-mode}"
+plugin_dir="$pi_home/plugin"
+
+if [[ ! -f "$plugin_dir/extensions/pi-mode/extension.mjs" ]]; then
+  echo "copilot-pi: plugin not found at $plugin_dir. Re-run the installer." >&2
+  exit 1
+fi
+if ! command -v copilot >/dev/null 2>&1; then
+  echo "copilot-pi: GitHub Copilot CLI ('copilot') is not on PATH." >&2
+  exit 1
+fi
+
+# Enables run_program (codemode-like tool orchestration).
+pi_flags="PROGRAMMATIC_TOOL_CALLING,CLIENT_SIDE_PROGRAMMATIC_TOOL_CALLING,PROGRAMMATIC_TOOL_CALLING_ALL_TOOLS"
+export COPILOT_CLI_ENABLED_FEATURE_FLAGS="${COPILOT_CLI_ENABLED_FEATURE_FLAGS:+$COPILOT_CLI_ENABLED_FEATURE_FLAGS,}$pi_flags"
+
+permission_args=(--allow-all)
+if [[ "${COPILOT_PI_APPROVAL:-}" == "manual" ]]; then
+  permission_args=(--allow-tool 'custom-tool(run_program)' --allow-tool 'custom-tool(web_search)')
+else
+  # Exactly "true" also trusts the working folder without prompting (like Pi's defaultProjectTrust: "always").
+  export COPILOT_ALLOW_ALL=true
+fi
+
+exec copilot \
+  --experimental \
+  --plugin-dir "$plugin_dir" \
+  --disable-mcp-server githubiq \
+  --add-github-mcp-tool web_search \
+  --no-ask-user \
+  "${permission_args[@]}" \
+  "$@"
